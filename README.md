@@ -9,12 +9,12 @@ xspike 目前可支持的功能有：
 - [x] 批量启动实验脚本
 - [x] 钉钉通知
 - [x] Comet.ml 管理
-- [x] 安装 Redis、启动 Redis、Redis 数据维护
-- [x] 在命令行输入
 
+## 安装 Redis、启动 Redis、Redis 数据维护
+在命令行输入
+```
 xspike
-可以看到如下启动界面：
-
+```
 
 按照提示依次执行 4、5、6 号操作即可部署好 Redis 环境
 
