@@ -4,9 +4,8 @@ import json
 import time
 from nvitop import Device, GpuProcess, NA
 import setproctitle
-from xspike.utils import Logger
+from loguru import logger
 
-log = Logger(__name__)
 
 def main():
 
@@ -21,13 +20,13 @@ def main():
             pid = int(task['system_pid'])
             if not psutil.pid_exists(pid):
                 redis_client.client.hdel("running_processes", task['id'])
-                log.info(f"发现 GPU占用信息 中存在残余数据，已清除，进程为{pid}")
+                logger.info(f"发现 GPU占用信息 中存在残余数据，已清除，进程为{pid}")
         for task_json in queue:
             task = json.loads(task_json)
             pid = int(task['system_pid'])
             if not psutil.pid_exists(pid):
                 redis_client.client.lrem("wait_queue", 1, task_json)
-                log.info(f"发现 GPU排队队列 中存在残余数据，已清除，进程为{pid}")
+                logger.info(f"发现 GPU排队队列 中存在残余数据，已清除，进程为{pid}")
 
         gpu_infos = []
         gpu = {}

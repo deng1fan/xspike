@@ -1,11 +1,13 @@
 import comet_ml
 import os
-from xspike.utils import Logger, get_file_paths_in_directory
+from xspike.utils import get_file_paths_in_directory
 import uuid
 
-log = Logger(__name__)
-ONLY_FILES = [".py", ".yml"]
+from loguru import logger
 
+
+
+ONLY_FILES = [".py", ".yml"]
 
 class CometClient:
     
@@ -23,24 +25,26 @@ class CometClient:
         self.experiment.set_name(exp_name)
         self.experiment.log_other("进程ID", str(os.getpid()))
             
-        log.info("Comet 实验记录已启动")
+        logger.info("Comet 实验记录已启动")
         
+    @logger.catch
     def get_experiment_by_key(self):
         api = comet_ml.api.API()
         experiment = api.get_experiment_by_key(os.environ["COMET_EXPERIMENT_KEY"])
         return experiment
     
+    @logger.catch
     def get_experiment(self):
         return self.experiment
 
-
+    @logger.catch
     def log_directory(self, directory, only_files=ONLY_FILES):
         file_paths = get_file_paths_in_directory(directory, only_files=only_files)
-        log.info(f"目录 {directory} 下的文件正准备上传至 Comet，这可能需要一段时间")
+        logger.info(f"目录 {directory} 下的文件正准备上传至 Comet，这可能需要一段时间")
         for file_path in file_paths:
             try:
                 self.experiment.log_asset(file_path, file_name=file_path)
             except Exception as e:
-                log.warning(f"文件 {file_path} 上传至 Comet 失败: {e}")
-                log.warning(f"请检查文件是否过大，或是否有特殊字符")
+                logger.warning(f"文件 {file_path} 上传至 Comet 失败: {e}")
+                logger.warning(f"请检查文件是否过大，或是否有特殊字符")
         

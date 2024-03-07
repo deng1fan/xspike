@@ -1,12 +1,11 @@
-from xspike.utils import Logger
 import os
 import pickle
 import json
 import jsonlines
+from loguru import logger
 
-log = Logger(__name__) 
 
-
+@logger.catch
 def load_in(path, data_name=""):
     """读取文件，根据文件后缀名自动选择读取方法
         目前支持保存类型有：‘pkl’、‘txt’、‘json’, 'jsonl'
@@ -20,9 +19,9 @@ def load_in(path, data_name=""):
     if data_name == "":
         data_name = path.split("/")[-1]
     if not os.path.exists(path):
-        log.info(f"文件路径似乎并不存在....")
+        logger.info(f"文件路径似乎并不存在....")
         raise FileNotFoundError(path)
-    log.info(f"正在加载文件 {data_name} from {path}")
+    logger.info(f"正在加载文件 {data_name} from {path}")
     if ".pkl" in path:
         with open(path, "rb") as f:
             data = pickle.load(f)
@@ -48,10 +47,11 @@ def load_in(path, data_name=""):
             if item == "":
                 continue
             data.append(item)
-    log.info(f"成功加载 {data_name}!")
+    logger.info(f"成功加载 {data_name}!")
     return data
 
 
+@logger.catch
 def save_as(data, save_path, data_name="", protocol=4):
     """将参数中的文件对象保存为指定格式格式文件
         目前支持保存类型有：‘pkl’、‘txt’、‘pt’、‘json’, 'jsonl'
@@ -71,9 +71,9 @@ def save_as(data, save_path, data_name="", protocol=4):
     file_format = save_path.split(".")[-1]
     parent_path = "/".join(save_path.split("/")[:-1])
     if not os.path.exists(parent_path):
-        log.info(f"保存路径的父文件夹（{parent_path}）不存在，将自动创建....")
+        logger.info(f"保存路径的父文件夹（{parent_path}）不存在，将自动创建....")
         os.makedirs(parent_path)
-    log.info(f"正在保存文件 {data_name} 到 {save_path}")
+    logger.info(f"正在保存文件 {data_name} 到 {save_path}")
     if file_format == "pkl":
         with open(save_path, "wb") as f:
             pickle.dump(data, f, protocol=protocol)
@@ -91,5 +91,5 @@ def save_as(data, save_path, data_name="", protocol=4):
             writer.write_all(data)
     else:
         raise Exception(f"请添加针对{file_format}类型文件的保存方法！")
-    log.info(f"保存 {data_name} 成功!")
+    logger.info(f"保存 {data_name} 成功!")
     return save_path

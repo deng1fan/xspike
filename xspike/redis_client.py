@@ -3,10 +3,7 @@ import os
 import datetime
 import time
 from redis import Redis
-from xspike.utils import Logger
-
-log = Logger(__name__) 
-
+from loguru import logger
 
 class RedisClient:
     def __init__(self):
@@ -50,9 +47,9 @@ class RedisClient:
         wait_num = len(self.client.lrange("wait_queue", 0, -1))
         self.client.rpush("wait_queue", json.dumps(content))
         if wait_num == 0:
-            log.info(f"正在排队中！ 目前排第一位！")
+            logger.info(f"正在排队中！ 目前排第一位！")
         else:
-            log.info(f"正在排队中！ 前方还有 {wait_num} 个任务！")
+            logger.info(f"正在排队中！ 前方还有 {wait_num} 个任务！")
         return wait_num
 
     def is_my_turn(self, id):
@@ -69,7 +66,7 @@ class RedisClient:
         task = json.loads(self.client.lrange("wait_queue", 0, -1)[0])
         if task["id"] != id:
             # 登记异常信息
-            log.warning("当前训练任务并不排在队列第一位，请检查Redis数据正确性！")
+            logger.warning("当前训练任务并不排在队列第一位，请检查Redis数据正确性！")
         curr_time = datetime.datetime.now()
         update_time = datetime.datetime.strftime(
             curr_time, "%Y-%m-%d %H:%M:%S")
@@ -83,7 +80,7 @@ class RedisClient:
         task = json.loads(self.client.lrange("wait_queue", 0, -1)[0])
         if task["id"] != id:
             # 登记异常信息
-            log.warning("当前训练任务并不排在队列第一位，请检查Redis数据正确性！")
+            logger.warning("当前训练任务并不排在队列第一位，请检查Redis数据正确性！")
         next_task = self.client.lpop("wait_queue")
         return next_task
 
@@ -104,7 +101,7 @@ class RedisClient:
             "task_desc": memo,
         }
         self.client.hset("running_processes", id, json.dumps(content))
-        log.info("成功登记进程使用信息到Redis服务器！")
+        logger.info("成功登记进程使用信息到Redis服务器！")
         return id
 
     def deregister_process(self, id):
@@ -114,9 +111,9 @@ class RedisClient:
         task = self.client.hget("running_processes", id)
         if task:
             self.client.hdel("running_processes", id)
-            log.info("成功删除Redis服务器上的进程使用信息！")
+            logger.info("成功删除Redis服务器上的进程使用信息！")
         else:
-            log.warning("无法找到当前训练任务在Redis服务器上的进程使用信息！或许可以考虑检查一下Redis的数据 🤔")
+            logger.warning("无法找到当前训练任务在Redis服务器上的进程使用信息！或许可以考虑检查一下Redis的数据 🤔")
 
 
 

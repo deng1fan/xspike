@@ -1,11 +1,9 @@
 from nvitop import select_devices, Device
 import time
 import os
-from xspike.utils import Logger
 from xspike.redis_client import RedisClient
 import datetime
-
-log = Logger(__name__) 
+from loguru import logger
 
 
 class GPUQueuer:
@@ -30,6 +28,7 @@ class GPUQueuer:
             str(os.getpid()) + str(int(time.mktime(time.strptime(creat_time, "%Y-%m-%d %H:%M:%S"))))
         )
 
+    @logger.catch
     def start(self):        
         # ---------------------------------------------------------------------------- #
         #                         获取当前符合条件的所有处理器                                     
@@ -52,7 +51,7 @@ class GPUQueuer:
             cuda = ",".join(cuda)
             self.cuda = cuda
             redis_client.register_process(self.id, cuda, n_gpus=self.n_gpus, memo=self.memo)
-            log.info(f"获取到足够的卡，当前分配的卡为：{cuda}")
+            logger.info(f"获取到足够的卡，当前分配的卡为：{cuda}")
             return cuda
         else:
             # ---------------------------------------------------------------------------- #
@@ -95,7 +94,7 @@ class GPUQueuer:
         cuda = [str(x) for x in cuda]
         cuda = ",".join(cuda)
         self.cuda = cuda
-        log.info(f"获取到足够的卡，当前分配的卡为：{cuda}")
+        logger.info(f"获取到足够的卡，当前分配的卡为：{cuda}")
         
         # ---------------------------------------------------------------------------- #
         #                         从队列中弹出并注册处理器和进程                              
@@ -104,7 +103,8 @@ class GPUQueuer:
         redis_client.register_process(self.id, cuda, n_gpus=self.n_gpus, memo=self.memo)
             
         return cuda
-        
+    
+    @logger.catch
     def close(self):
         # 释放资源
         self.redis_client.deregister_process(self.id)

@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='xspike',
-    version='0.2.7',
+    version='0.2.9',
     author='deng1fan',
     author_email='dengyifan@iie.ac.cn',
     url='https://github.com/deng1fan',
@@ -22,6 +22,7 @@ setup(
         'setproctitle',
         'dingtalkchatbot',
         'comet_ml',
+        'loguru'
     ],
     exclude=["*.tests", "*.tests.*", "tests"],
     include_package_data=True,
