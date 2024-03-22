@@ -3,9 +3,7 @@ from rich.console import Console
 import subprocess
 from rich.progress import track
 import time
-import inspect
 import re
-from importlib import import_module
 import sys
 import traceback
 from dingtalkchatbot.chatbot import DingtalkChatbot
@@ -13,9 +11,23 @@ import psutil
 import copy
 import argparse
 from loguru import logger
+from datetime import timedelta
+import argparse
+import json
+import importlib
+import inspect
+from datetime import datetime, timezone
 
 
 console = Console()
+
+
+def set_env_variables(env_variables: dict):
+    for key, value in env_variables.items():
+        os.environ[key] = value
+        logger.info(f"设置环境变量 {key} = {value}")
+
+
 
 
 def print_error_info(e: Exception):
@@ -39,46 +51,79 @@ def print_error_info(e: Exception):
 
 
 
-def load_class(class_path: str) -> type:
-    """Load a class from a string.
+def load_module(module_path, class_name=None, method_name=None, *args, **kwargs):
+    """
+    动态加载模块中的类或方法。
 
-    Args:
-        class_path: The class path.
-
-    Returns:
-        The class.
-
-    Raises:
-        ImportError: If the class cannot be imported.
-        AttributeError: If the class cannot be found.
+    :param module_path: 模块的完整路径，如 'mypackage.mymodule'。
+    :param class_name: 可选，要加载的类的名称。
+    :param method_name: 可选，要加载的方法的名称。
+    :return: 返回类实例或方法，取决于class_name和method_name的设置。
     """
     try:
-        module_path, _, class_name = class_path.rpartition(".")
-        module = import_module(module_path)
-        return getattr(module, class_name)
-    except (ImportError, AttributeError) as e:
-        logger.error(f"加载类失败: {class_path}")
-        print_error_info(e)
+        # 导入模块
+        module = importlib.import_module(module_path)
+        
+        if class_name:
+            # 加载类并创建实例
+            if inspect.isclass(getattr(module, class_name, None)):
+                class_instance = getattr(module, class_name)(*args, **kwargs)
+                return class_instance
+            else:
+                raise AttributeError(f"{class_name} is not a class in {module_path}")
+        elif method_name:
+            # 加载方法
+            if hasattr(module, method_name):
+                method = getattr(module, method_name)
+                return method
+            else:
+                raise AttributeError(f"{method_name} is not a method or does not exist in {module_path}")
+        else:
+            raise ValueError("Either class_name or method_name must be provided.")
+    except ModuleNotFoundError:
+        raise ImportError(f"Module {module_path} not found.")
+    except Exception as e:
         raise e
 
 
 
 
-
-def delete_between_delimiters(text, delimiter1, delimiter2):
+def delete_between_delimiters(text, delimiter1, delimiter2, remove_delimiter=True):
     """删除text中位于delimiter1和delimiter2之间的字符
 
     Args:
         text (str): 文本
         delimiter1 (str): 前分隔符
         delimiter2 (str): 后分隔符
+        remove_delimiter (bool, optional): 是否删除分隔符. Defaults to True.
 
     Returns:
         result: 处理后的文本
     """
-    pattern = re.escape(delimiter1) + ".*?" + re.escape(delimiter2)
-    result = re.sub(pattern, '', text)
-    return result
+    if remove_delimiter:
+        pattern = re.escape(delimiter1) + r'(.*?)' + re.escape(delimiter2)
+        result = re.sub(pattern, '', text)
+        return result
+    else:
+        # 定义一个替换函数，用于保留分隔符
+        def replace_func(match):
+            # match.group(0) 是整个匹配的文本，包括分隔符
+            return match.group(0).replace(match.group(1), '')  # 删除匹配的内层内容
+
+        # 构建正则表达式模式
+        pattern = re.escape(delimiter1) + r'(.*?)' + re.escape(delimiter2)
+        # 使用正则表达式替换匹配的子串，保留分隔符
+        return re.sub(pattern, replace_func, text)
+
+
+def get_between_delimiters(text, delimiter1, delimiter2):
+    # 构建正则表达式模式
+    pattern = re.escape(delimiter1) + r'(.*?)' + re.escape(delimiter2)
+    # 使用正则表达式查找所有匹配的子串
+    matches = re.findall(pattern, text)
+    # 返回所有匹配的子串列表
+    return matches
+
 
 
 def echo(msg, color="green"):
@@ -178,7 +223,7 @@ def hi():
 
 
 
-@logger.catch
+
 def notice(msg: str = "", warning=False, access_token="", secret=""):
     """钉钉消息通知
     
@@ -215,7 +260,12 @@ class Result(dict):
         dict (_type_): 初始化字典
     """
     def __getattr__(self, name):
-        return self[name]
+        try:
+            # 尝试返回字典中对应的值
+            return self[name]
+        except KeyError:
+            # 如果键不存在，抛出AttributeError
+            raise AttributeError(f"No attribute '{name}'")
 
     def __init__(self, *args, **kwargs):
         super(Result, self).__init__()
@@ -356,7 +406,7 @@ class Result(dict):
         return super().copy()
     
     
-@logger.catch    
+    
 def get_file_paths_in_directory(directory="./", ignored_files=[], only_files=[]):
     file_paths = []
     # 遍历指定目录
@@ -375,8 +425,8 @@ def get_file_paths_in_directory(directory="./", ignored_files=[], only_files=[])
 
     return file_paths
 
-@logger.catch
-def get_argument_value(argument_key):
+
+def get_args_value(argument_key):
     # 创建ArgumentParser对象
     parser = argparse.ArgumentParser(description="Get a specific argument value from command line.")
     
@@ -390,3 +440,173 @@ def get_argument_value(argument_key):
     value = getattr(args, argument_key, None)
     
     return value
+
+
+
+def generate_timestamp():
+    # 获取当前时间，并确保是UTC时间，避免时区问题
+    now = datetime.now(timezone.utc)
+    # 格式化时间戳，去掉空格和不安全的字符
+    timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+    return timestamp_str
+
+
+
+
+class Timer:
+    def __init__(self):
+        self.start_time = None
+
+    def start(self):
+        # 开始计时，记录开始时间
+        self.start_time = time.time()
+
+    def end(self):
+        # 结束计时，记录结束时间
+        if self.start_time is None:
+            raise ValueError("计时器尚未开始，请先调用start方法。")
+        self.end_time = time.time()
+        # 计算时间间隔
+        elapsed_seconds = self.end_time - self.start_time
+        # 将秒数转换为天数、小时、分钟和秒数
+        timedelta_obj = timedelta(seconds=elapsed_seconds)
+        days = timedelta_obj.days
+        # 初始化remainder为0，以避免在divmod返回值为0时出现问题
+        remainder = timedelta_obj.seconds
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        # 返回格式化的时间间隔
+        return days, hours, minutes, seconds
+
+
+
+class BaseArgs:
+    def __init__(self):
+        self.params = {}
+
+    def parse_args(self):
+        """
+        解析命令行参数。
+        """
+        parser = argparse.ArgumentParser()
+        args = parser.parse_args()
+        self.update_or_add(args)
+        
+    def values(self):
+        """
+        返回参数字典。
+        """
+        return self.params
+    
+    
+    def has(self, key):
+        """
+        判断参数字典中是否存在指定键。
+        
+
+        :param key: 要判断的键。
+        :return: 如果存在，返回 True；否则，返回 False。
+        """
+        return key in self.params
+    
+    
+    def check(self, key):
+        """
+        检查参数字典中是否存在指定键，并且值不为空。
+        
+
+        :param key: 要检查的键。
+        :return: 如果存在并且不为空，返回 True；否则，返回 False。
+        """
+        if key in self.params and self.params[key] is not None and self.params[key]!= "":
+            return True
+        else:
+            return False
+    
+    def set(self, key, value=None):
+        """
+        设置参数值。
+        :param key: 参数名称。
+        :param value: 参数值。
+        """
+        self.params[key] = value
+        logger.info(f"Set parameter '{key}' with value '{value}'.")
+        
+
+        
+        
+    def get(self, key, default_value=None):
+        return self.params.get(key, default_value)
+
+    def update(self, args):
+        """
+        动态更新参数值。
+
+        :param args: 包含命令行参数的对象。
+        """
+        for attr, value in vars(args).items():
+            if attr in self.params:
+                self.params[attr] = value
+                logger.info(f"Updated parameter '{attr}' with value '{value}'.")
+
+    def update_or_add(self, args):
+        """
+        动态更新或添加参数值。
+
+        :param args: 包含命令行参数的对象。
+        """
+        for attr, value in vars(args).items():
+            if attr in self.params:
+                self.params[attr] = value
+                logger.info(f"Updated parameter '{attr}' with value '{value}'.")
+            else:
+                self.params[attr] = value
+                logger.info(f"Added parameter '{attr}' with value '{value}'.")
+
+    def delete_parameter(self, parameter_name):
+        """
+        删除一个参数。
+
+        :param parameter_name: 要删除的参数名称。
+        """
+        if parameter_name in self.params:
+            del self.params[parameter_name]
+            logger.info(f"Deleted parameter '{parameter_name}'.")
+        else:
+            logger.warning(f"Parameter '{parameter_name}' does not exist.")
+
+    def print(self):
+        """
+        使用 json.dump 美化打印所有参数及其值。
+        """
+        print(json.dumps(self.params, indent=4, sort_keys=True))
+
+    def __str__(self):
+        """
+        返回参数的字符串表示。
+        """
+        return json.dumps(self.params, indent=4)
+    
+
+def inspect_args(class_or_func):
+    return inspect.signature(class_or_func).parameters.keys()
+    
+
+def inspect_and_filter_args(class_or_func, args):
+    """
+    过滤掉不在函数参数列表中的参数。
+    
+
+    :param class_or_func: 类或函数。
+    :param args: 包含命令行参数的字典。
+    :return: 过滤后的参数字典。
+    """
+    arg_names = inspect_args(class_or_func)
+    filtered_args = {}
+    for arg_name in arg_names:
+        if arg_name in args:
+            filtered_args[arg_name] = args[arg_name]
+    return filtered_args
+
+
+

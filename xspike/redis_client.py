@@ -5,6 +5,7 @@ import time
 from redis import Redis
 from loguru import logger
 
+
 class RedisClient:
     def __init__(self):
         self.client = Redis(
@@ -68,8 +69,7 @@ class RedisClient:
             # 登记异常信息
             logger.warning("当前训练任务并不排在队列第一位，请检查Redis数据正确性！")
         curr_time = datetime.datetime.now()
-        update_time = datetime.datetime.strftime(
-            curr_time, "%Y-%m-%d %H:%M:%S")
+        update_time = datetime.datetime.strftime(curr_time, "%Y-%m-%d %H:%M:%S")
         task["update_time"] = update_time
         self.client.lset("wait_queue", 0, json.dumps(task))
 
@@ -113,7 +113,6 @@ class RedisClient:
             self.client.hdel("running_processes", id)
             logger.info("成功删除Redis服务器上的进程使用信息！")
         else:
-            logger.warning("无法找到当前训练任务在Redis服务器上的进程使用信息！或许可以考虑检查一下Redis的数据 🤔")
-
-
-
+            logger.warning(
+                "无法找到当前训练任务在Redis服务器上的进程使用信息！或许可以考虑检查一下Redis的数据 🤔"
+            )
