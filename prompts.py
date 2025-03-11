@@ -1,4 +1,5 @@
 from xspike.io import load_in
+from transformers import AutoTokenizer
 
 class Llama2Prompt:
     def __init__(self):
@@ -57,7 +58,7 @@ class QWen2Prompt:
     
 class QWen2PrismPrompt:
     def __init__(self):
-        self.sys_persona = "你是一个数据合成器，负责根据以下示例生成新的派生数据。新的数据应保留与原始示例相似的结构和核心内容，但要在细节上进行适当变化，确保生成的数据需与示例有足够的区别，以避免重复，同时确保内容合乎逻辑且真实可信。生成的内容必须始终围绕指定的主题或话题，并严格遵循要求。每条数据都对应着一条唯一的序列号，序列号的不同将对新数据的内容产生影响。"
+        self.sys_persona = "你是一个数据合成器，负责根据以下示例生成新的重写数据。新的数据应保留与原始示例相似的结构和核心内容，但要确保生成的数据需与示例有足够的区别，以避免重复，同时确保内容合乎逻辑且真实可信。"
         self.user_start_token = "<|im_start|>user\n"
         self.bot_start_token = "<|im_start|>assistant\n"
         self.eos_token = "<|im_end|>\n"
@@ -197,9 +198,9 @@ PROMPT_DICT = {
     "vicuna_gen": VicunaGenPrompt(),
     "mistral": MistralPrompt(),
     "llama3": Llama3Prompt(),
-    "qwen2": QWen2Prompt(),
-    "qwen_prism": QWen2PrismPrompt(),
-    "seepseek": DeepSeekPrompt(),
+    "Qwen/Qwen2-7B-Instruct": QWen2Prompt(),
+    "Qwen/Qwen2.5-7B-Instruct": QWen2Prompt(),
+    "deepseek": DeepSeekPrompt(),
 }
 
 
@@ -295,9 +296,6 @@ def apply_prompt_pair(
     for conv_data in ori_inputs:
         turns = conv_data["conversations"]
 
-        # 准备对话历史缓存
-        dialog_history = []
-
         # 遍历所有对话轮次，构建多轮输入
         for i in range(0, len(turns), 2):
             # 确保对话的最后一句话以 assistant 结束
@@ -328,7 +326,8 @@ def apply_prompt_pair(
     return formatted_inputs
 
 
-def apply_prompt(dials, model_type="qwen2", sys_prompt=None):
+
+def apply_prompt(dials, model_id="qwen2", sys_prompt=None, tokenize=False, user_as_last=True):
     """
     将对话历史转换为模型输入格式，dials 的最后一句话以 user 结束
     dials Format 1:
@@ -346,15 +345,34 @@ def apply_prompt(dials, model_type="qwen2", sys_prompt=None):
 
     dials Format 2:
     [
-        ["Hello, how can I help you?", "I'm sorry, I don't have the answer to your question."],
-        ["Hello!", "I'm sorry."]
+        "Hello, how can I help you?",
+        "Hello!",
         ......
     ]
     """
+
+    # tokenizer = AutoTokenizer.from_pretrained(model_id)
+    # if isinstance(dials[0], dict):
+    #     if sys_prompt is not None:
+    #         dials.insert(0, {"role": "system", "content": sys_prompt})
+    #     input_str = tokenizer.apply_chat_template(dials, add_generation_prompt=True, tokenize=tokenize)
+    # else:
+    #     messages = []
+    #     # 反向遍历对话历史，并确保第一个分配给 user
+    #     for i, dial in enumerate(reversed(dials)):
+    #         role = "user" if i % 2 == 0 else "assistant"  # 第一个角色给 user，后面交替
+    #         messages.append({"role": role, "content": dial})
+
+    #     # 反转消息列表来恢复对话的原始顺序
+    #     messages.reverse()
+    #     if sys_prompt is not None:
+    #         messages.insert(0, {"role": "system", "content": sys_prompt})
+    #     input_str = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=tokenize)
+        
     # 获取对应的prompt构建器
-    prompt_builder = PROMPT_DICT.get(model_type)
+    prompt_builder = PROMPT_DICT.get(model_id)
     if not prompt_builder:
-        raise ValueError(f"Unsupported model type: {model_type}")
+        raise ValueError(f"Unsupported model type: {model_id}")
 
     if sys_prompt:
         prompt_builder.sys_persona = sys_prompt
@@ -367,10 +385,23 @@ def apply_prompt(dials, model_type="qwen2", sys_prompt=None):
         if not all("role" in item and "content" in item for item in dials):
             raise ValueError("无效的对话格式：确保每个字典都有role和content键")
     else:
-        # 处理列表的列表（如[["A", "B"], ["C"]])，转为标准对话格式
-        dials = to_std_dial([dials])[0]['conversations']
+        messages = []
+        if user_as_last:
+            # 反向遍历对话历史，并确保第一个分配给 user
+            for i, dial in enumerate(reversed(dials)):
+                role = "user" if i % 2 == 0 else "assistant"  # 第一个角色给 user，后面交替
+                messages.append({"role": role, "content": dial})
 
-    if dials[-1]["role"] != "user":
+            # 反转消息列表来恢复对话的原始顺序
+            messages.reverse()
+        else:
+            # 正向遍历对话历史，并确保第一个分配给 user
+            for i, dial in enumerate(dials):
+                role = "user" if i % 2 == 0 else "assistant"
+                messages.append({"role": role, "content": dial})
+        dials = messages
+
+    if user_as_last and dials[-1]["role"] != "user":
         raise ValueError("Last turn must be user input")
     # 检查是否是 user 和 assistant 交替的对话，可以是 user 开始，也可以是 assistant 开始
     prev_role = None
@@ -388,7 +419,7 @@ def apply_prompt(dials, model_type="qwen2", sys_prompt=None):
     user_input = dials[-1]["content"]
 
     # 生成完整prompt
-    full_prompt = prompt_builder.build_input(history=history, user_input=user_input)
+    input_str = prompt_builder.build_input(history=history, user_input=user_input)
 
 
-    return full_prompt 
+    return input_str 

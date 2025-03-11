@@ -60,7 +60,8 @@ def chat_flow(msg_flow: list, model: list="llama3", system_prompt: str=""):
                     "role": "assistant", 
                     "content": ollama.chat(
                                     model=model,
-                                    messages=messages
+                                    messages=messages,
+                                    options = {"temperature":0.61,}
                                     )["message"]["content"],
                 }
             )
@@ -795,6 +796,14 @@ def dict_to_list(data_dict):
             item[key] = data_dict[key][i]
         res.append(item)
     return res
+
+
+def count_chars(text):
+    """统计文本中的汉字和非汉字字符数"""
+    chinese_chars = re.findall('[\u4e00-\u9fff]', text)
+    non_chinese_chars = re.findall('[^\u4e00-\u9fff]', text)
+    
+    return len(chinese_chars), len(non_chinese_chars)
 
 
 def edit_distance(s1, s2):
