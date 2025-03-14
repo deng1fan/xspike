@@ -125,26 +125,26 @@ def main():
         exit()
 
     # 读取 ~/.bashrc 文件内容
-    if not os.path.exists("~/.bashrc"):
-        run_cmd("touch ~/.bashrc", show_cmd=False)
-    bashrc = run_cmd("cat ~/.bashrc", show_cmd=False)
-    if "lazyinit" not in bashrc:
-        print(
-            "未找到 lazyinit 配置，即将注入配置到 ~/.bashrc（完成后可能需要重启初始化工具）"
-        )
-        # ---------------------------------------------------------------------------- #
-        #                         配置 Bash 环境变量
-        # ---------------------------------------------------------------------------- #
-        bash = [
-            "cd ~/",
-            "cat {}/bash_config.txt >> ~/.bashrc".format(pkg_current_path),
-        ]
-        run_cmd(bash, show_cmd=False)
-        echo(
-            "运行 {} 以完成配置（运行后需要重启工具）".format("source ~/.bashrc"),
-            "yellow",
-        )
-        exit(0)
+    # if not os.path.exists("~/.bashrc"):
+    #     run_cmd("touch ~/.bashrc", show_cmd=False)
+    # bashrc = run_cmd("cat ~/.bashrc", show_cmd=False)
+    # if "lazyinit" not in bashrc:
+    #     print(
+    #         "未找到 lazyinit 配置，即将注入配置到 ~/.bashrc（完成后可能需要重启初始化工具）"
+    #     )
+    #     # ---------------------------------------------------------------------------- #
+    #     #                         配置 Bash 环境变量
+    #     # ---------------------------------------------------------------------------- #
+    #     bash = [
+    #         "cd ~/",
+    #         "cat {}/bash_config.txt >> ~/.bashrc".format(pkg_current_path),
+    #     ]
+    #     run_cmd(bash, show_cmd=False)
+    #     echo(
+    #         "运行 {} 以完成配置（运行后需要重启工具）".format("source ~/.bashrc"),
+    #         "yellow",
+    #     )
+    #     exit(0)
 
     echo("")
     echo("")
